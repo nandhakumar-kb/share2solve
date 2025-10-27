@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Migrate LocalStorage Data - share2solve</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f7fa;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+    h1 { color: #667eea; }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .status {
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 8px;
+      font-weight: 500;
+    }
+    .success { background: #d4edda; color: #0f5132; }
+    .error { background: #f8d7da; color: #721c24; }
+    .info { background: #d1ecf1; color: #0c5460; }
+    .warning { background: #fff3cd; color: #856404; }
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e1e8ed;
+      border-radius: 8px;
+      font-size: 14px;
+      margin: 10px 0;
+    }
+    .stats {
+      display: flex;
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .stat-card {
+      flex: 1;
+      padding: 20px;
+      background: #f7fafc;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .stat-number {
+      font-size: 32px;
+      font-weight: bold;
+      color: #667eea;
+    }
+    .stat-label {
+      color: #5a6c7d;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📦 Migrate LocalStorage Data</h1>
+    <p>This tool migrates your existing localStorage problems to the new backend database.</p>
+    
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-number" id="localCount">0</div>
+        <div class="stat-label">Local Problems</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="migratedCount">0</div>
+        <div class="stat-label">Migrated</div>
+      </div>
+    </div>
+
+    <div>
+      <label for="apiUrl"><strong>API URL:</strong></label>
+      <input 
+        type="text" 
+        id="apiUrl" 
+        placeholder="http://localhost:4000/api" 
+        value="http://localhost:4000/api"
+      />
+    </div>
+
+    <div>
+      <button id="checkBtn">Check LocalStorage</button>
+      <button id="migrateBtn" disabled>Start Migration</button>
+      <button id="clearLocalBtn" disabled>Clear LocalStorage (after migration)</button>
+    </div>
+
+    <div id="status"></div>
+    <div id="log" style="margin-top: 20px; font-family: monospace; font-size: 12px;"></div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const localCountEl = document.getElementById('localCount');
+    const migratedCountEl = document.getElementById('migratedCount');
+    const checkBtn = document.getElementById('checkBtn');
+    const migrateBtn = document.getElementById('migrateBtn');
+    const clearLocalBtn = document.getElementById('clearLocalBtn');
+    const apiUrlInput = document.getElementById('apiUrl');
+
+    let localProblems = [];
+    let migratedCount = 0;
+
+    function log(message, type = 'info') {
+      console.log(message);
+      logEl.innerHTML += `<div style="color: ${
+        type === 'error' ? '#c33' : type === 'success' ? '#2a2' : '#666'
+      }; padding: 3px 0;">[${new Date().toLocaleTimeString()}] ${message}</div>`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function showStatus(message, type) {
+      statusEl.innerHTML = `<div class="status ${type}">${message}</div>`;
+    }
+
+    checkBtn.addEventListener('click', () => {
+      try {
+        const stored = localStorage.getItem('share2solve-problems');
+        if (!stored) {
+          showStatus('No problems found in localStorage.', 'info');
+          localCountEl.textContent = '0';
+          return;
+        }
+
+        localProblems = JSON.parse(stored);
+        localCountEl.textContent = localProblems.length;
+        
+        if (localProblems.length > 0) {
+          showStatus(`Found ${localProblems.length} problem(s) in localStorage. Ready to migrate!`, 'success');
+          migrateBtn.disabled = false;
+          log(`Found ${localProblems.length} problems in localStorage`);
+        } else {
+          showStatus('No problems to migrate.', 'info');
+        }
+      } catch (error) {
+        showStatus('Error reading localStorage: ' + error.message, 'error');
+        log('Error: ' + error.message, 'error');
+      }
+    });
+
+    migrateBtn.addEventListener('click', async () => {
+      if (localProblems.length === 0) {
+        showStatus('No problems to migrate. Click "Check LocalStorage" first.', 'warning');
+        return;
+      }
+
+      const apiUrl = apiUrlInput.value.trim();
+      if (!apiUrl) {
+        showStatus('Please enter API URL', 'error');
+        return;
+      }
+
+      migrateBtn.disabled = true;
+      checkBtn.disabled = true;
+      migratedCount = 0;
+      logEl.innerHTML = '';
+
+      showStatus(`Starting migration of ${localProblems.length} problems...`, 'info');
+      log(`Starting migration to ${apiUrl}`);
+
+      for (let i = 0; i < localProblems.length; i++) {
+        const problem = localProblems[i];
+        
+        try {
+          const response = await fetch(`${apiUrl}/problems`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: problem.email,
+              problem: problem.problem,
+              timestamp: problem.timestamp || new Date().toISOString()
+            })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || `HTTP ${response.status}`);
+          }
+
+          migratedCount++;
+          migratedCountEl.textContent = migratedCount;
+          log(`✓ Migrated: ${problem.email}`, 'success');
+
+        } catch (error) {
+          log(`✗ Failed: ${problem.email} - ${error.message}`, 'error');
+        }
+
+        // Small delay to avoid overwhelming the server
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      const success = migratedCount === localProblems.length;
+      
+      if (success) {
+        showStatus(
+          `✓ Migration complete! Successfully migrated all ${migratedCount} problems.`, 
+          'success'
+        );
+        clearLocalBtn.disabled = false;
+      } else {
+        showStatus(
+          `⚠️ Partial migration: ${migratedCount} of ${localProblems.length} problems migrated. Check logs for errors.`, 
+          'warning'
+        );
+      }
+
+      migrateBtn.disabled = false;
+      checkBtn.disabled = false;
+      log(`Migration finished: ${migratedCount}/${localProblems.length} successful`);
+    });
+
+    clearLocalBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to clear localStorage? Make sure migration was successful first!')) {
+        localStorage.removeItem('share2solve-problems');
+        showStatus('✓ LocalStorage cleared successfully!', 'success');
+        log('LocalStorage cleared');
+        localCountEl.textContent = '0';
+        clearLocalBtn.disabled = true;
+        migrateBtn.disabled = true;
+        localProblems = [];
+      }
+    });
+
+    // Auto-check on load
+    window.addEventListener('load', () => {
+      checkBtn.click();
+    });
+  </script>
+</body>
+</html>

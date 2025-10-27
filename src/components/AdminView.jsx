@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import apiService from '../services/api'
 
 function AdminView() {
   const [problems, setProblems] = useState([])
@@ -11,14 +12,16 @@ function AdminView() {
   const [currentPage, setCurrentPage] = useState(1)
   const [deletedProblem, setDeletedProblem] = useState(null)
   const [showUndo, setShowUndo] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const itemsPerPage = 10
-
-  const ADMIN_PASSWORD = 'password'
 
   useEffect(() => {
     const authStatus = sessionStorage.getItem('admin-authenticated')
-    if (authStatus === 'true') {
+    const savedPassword = sessionStorage.getItem('admin-password')
+    if (authStatus === 'true' && savedPassword) {
       setIsAuthenticated(true)
+      apiService.setAdminPassword(savedPassword)
       loadProblems()
     }
   }, [])
@@ -33,14 +36,18 @@ function AdminView() {
     setCurrentPage(1)
   }, [searchQuery, sortBy])
 
-  const loadProblems = () => {
-    const storedProblems = JSON.parse(localStorage.getItem('share2solve-problems') || '[]')
-    const problemsWithStatus = storedProblems.map(p => ({
-      ...p,
-      status: p.status || 'pending',
-      id: p.id || `${p.timestamp}-${p.email}`
-    }))
-    setProblems(problemsWithStatus.reverse())
+  const loadProblems = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await apiService.getProblems({ sortBy })
+      setProblems(data)
+    } catch (err) {
+      console.error('Error loading problems:', err)
+      setError('Failed to load problems. Please refresh the page.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filterProblems = () => {
@@ -79,80 +86,97 @@ function AdminView() {
     }
   }
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
-    if (password === ADMIN_PASSWORD) {
+    setPasswordError('')
+    setLoading(true)
+
+    try {
+      await apiService.verifyAdminLogin(password)
       setIsAuthenticated(true)
       sessionStorage.setItem('admin-authenticated', 'true')
-      loadProblems()
-      setPasswordError('')
-    } else {
+      sessionStorage.setItem('admin-password', password)
+      await loadProblems()
+    } catch (error) {
       setPasswordError('Incorrect password. Please try again.')
+      console.error('Login error:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleLogout = () => {
     setIsAuthenticated(false)
     sessionStorage.removeItem('admin-authenticated')
+    sessionStorage.removeItem('admin-password')
+    apiService.clearAdminPassword()
     setPassword('')
   }
 
-  const handleDelete = (problemId) => {
-    const allProblems = JSON.parse(localStorage.getItem('share2solve-problems') || '[]')
-    const problemIndex = allProblems.findIndex(p => {
-      const id = p.id || `${p.timestamp}-${p.email}`
-      return id === problemId
-    })
-    
-    if (problemIndex === -1) return
+  const handleDelete = async (problemId) => {
+    const problemToDelete = problems.find(p => p.id === problemId)
+    if (!problemToDelete) return
 
-    const deleted = allProblems[problemIndex]
-    setDeletedProblem({ problem: deleted, index: problemIndex })
-    
-    allProblems.splice(problemIndex, 1)
-    localStorage.setItem('share2solve-problems', JSON.stringify(allProblems))
-    loadProblems()
+    try {
+      await apiService.deleteProblem(problemId)
+      
+      setDeletedProblem(problemToDelete)
+      await loadProblems()
 
-    setShowUndo(true)
-    setTimeout(() => {
-      setShowUndo(false)
-      setDeletedProblem(null)
-    }, 5000)
-  }
-
-  const handleUndo = () => {
-    if (!deletedProblem) return
-
-    const allProblems = JSON.parse(localStorage.getItem('share2solve-problems') || '[]')
-    allProblems.splice(deletedProblem.index, 0, deletedProblem.problem)
-    localStorage.setItem('share2solve-problems', JSON.stringify(allProblems))
-    
-    setShowUndo(false)
-    setDeletedProblem(null)
-    loadProblems()
-  }
-
-  const handleStatusToggle = (problemId) => {
-    const allProblems = JSON.parse(localStorage.getItem('share2solve-problems') || '[]')
-    const problemIndex = allProblems.findIndex(p => {
-      const id = p.id || `${p.timestamp}-${p.email}`
-      return id === problemId
-    })
-
-    if (problemIndex !== -1) {
-      const currentStatus = allProblems[problemIndex].status || 'pending'
-      allProblems[problemIndex].status = currentStatus === 'pending' ? 'resolved' : 'pending'
-      allProblems[problemIndex].id = allProblems[problemIndex].id || `${allProblems[problemIndex].timestamp}-${allProblems[problemIndex].email}`
-      localStorage.setItem('share2solve-problems', JSON.stringify(allProblems))
-      loadProblems()
+      setShowUndo(true)
+      setTimeout(() => {
+        setShowUndo(false)
+        setDeletedProblem(null)
+      }, 5000)
+    } catch (error) {
+      console.error('Delete error:', error)
+      alert('Failed to delete problem: ' + error.message)
     }
   }
 
-  const handleClearAll = () => {
-    if (window.confirm('Are you sure you want to delete ALL problems? This cannot be undone!')) {
-      localStorage.removeItem('share2solve-problems')
+  const handleUndo = async () => {
+    if (!deletedProblem) return
+
+    try {
+      await apiService.submitProblem(deletedProblem)
+      setShowUndo(false)
+      setDeletedProblem(null)
+      await loadProblems()
+    } catch (error) {
+      console.error('Undo error:', error)
+      alert('Failed to undo delete: ' + error.message)
+    }
+  }
+
+  const handleStatusToggle = async (problemId) => {
+    const problem = problems.find(p => p.id === problemId)
+    if (!problem) return
+
+    const newStatus = problem.status === 'pending' ? 'resolved' : 'pending'
+
+    try {
+      await apiService.updateProblemStatus(problemId, newStatus)
+      await loadProblems()
+    } catch (error) {
+      console.error('Status toggle error:', error)
+      alert('Failed to update status: ' + error.message)
+    }
+  }
+
+  const handleClearAll = async () => {
+    if (!window.confirm('Are you sure you want to delete ALL problems? This cannot be undone!')) {
+      return
+    }
+
+    try {
+      for (const problem of problems) {
+        await apiService.deleteProblem(problem.id)
+      }
       setProblems([])
       setFilteredProblems([])
+    } catch (error) {
+      console.error('Clear all error:', error)
+      alert('Failed to clear all problems: ' + error.message)
     }
   }
 
@@ -233,10 +257,37 @@ function AdminView() {
                   </span>
                 )}
               </div>
-              <button type="submit" className="submit-btn">
-                Login
+              <button type="submit" className="submit-btn" disabled={loading}>
+                {loading ? 'Logging in...' : 'Login'}
               </button>
             </form>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  if (loading && problems.length === 0) {
+    return (
+      <div className="container">
+        <section className="admin-dashboard" aria-labelledby="dashboard-heading">
+          <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+            <p>Loading problems...</p>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  if (error && problems.length === 0) {
+    return (
+      <div className="container">
+        <section className="admin-dashboard" aria-labelledby="dashboard-heading">
+          <div style={{ textAlign: 'center', padding: '4rem 2rem' }} role="alert">
+            <p style={{ color: '#e74c3c' }}>⚠️ {error}</p>
+            <button onClick={loadProblems} className="submit-btn" style={{ marginTop: '1rem' }}>
+              Try Again
+            </button>
           </div>
         </section>
       </div>

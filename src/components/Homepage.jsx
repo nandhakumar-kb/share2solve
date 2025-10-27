@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import apiService from '../services/api'
 
 function Homepage() {
   const [email, setEmail] = useState('')
@@ -6,6 +7,7 @@ function Homepage() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [emailError, setEmailError] = useState('')
+  const [submitError, setSubmitError] = useState('')
   const [charCount, setCharCount] = useState(0)
   const [showShareMenu, setShowShareMenu] = useState(false)
   const maxChars = 1000
@@ -36,7 +38,7 @@ function Homepage() {
     }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     
     if (!validateEmail(email)) {
@@ -45,22 +47,20 @@ function Homepage() {
     }
 
     setIsSubmitting(true)
+    setSubmitError('')
     
-    const newProblem = {
-      email,
-      problem,
-      timestamp: new Date().toISOString()
-    }
+    try {
+      const newProblem = {
+        email,
+        problem,
+        timestamp: new Date().toISOString()
+      }
 
-    const existingProblems = JSON.parse(localStorage.getItem('share2solve-problems') || '[]')
-    existingProblems.push(newProblem)
-    localStorage.setItem('share2solve-problems', JSON.stringify(existingProblems))
+      await apiService.submitProblem(newProblem)
 
-    setTimeout(() => {
       setEmail('')
       setProblem('')
       setEmailError('')
-      setIsSubmitting(false)
       setShowSuccess(true)
 
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -68,7 +68,12 @@ function Homepage() {
       setTimeout(() => {
         setShowSuccess(false)
       }, 4000)
-    }, 500)
+    } catch (error) {
+      console.error('Submission error:', error)
+      setSubmitError(error.message || 'Failed to submit problem. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleShareWebsite = (platform) => {
@@ -187,6 +192,18 @@ function Homepage() {
         {showSuccess && (
           <div className="success-message" role="status" aria-live="polite">
             ✓ Thank you! Your submission has been received successfully.
+          </div>
+        )}
+        {submitError && (
+          <div className="error-message" role="alert" style={{ 
+            background: '#fee', 
+            color: '#c33', 
+            padding: '1rem', 
+            borderRadius: '8px', 
+            marginBottom: '1rem',
+            border: '1px solid #fcc'
+          }}>
+            ⚠️ {submitError}
           </div>
         )}
         <form onSubmit={handleSubmit} aria-label="Problem submission form">
