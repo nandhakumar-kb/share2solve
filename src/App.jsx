@@ -18,7 +18,7 @@ function App() {
       </a>
       <nav className="navbar" role="navigation" aria-label="Main navigation">
         <div className="navbar-content">
-          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="share2solve logo" className="navbar-logo" />
+          <img src="./logo.png" alt="share2solve logo" className="navbar-logo" />
           <h1>share2solve</h1>
         </div>
       </nav>
