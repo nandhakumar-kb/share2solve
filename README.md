@@ -1,229 +1,215 @@
-# share2solve
+# Share2Solve - MERN Stack Application
 
-A full-stack web application where people can share their problems with real-time database storage.
+A full-stack problem tracking and management system built with MongoDB, Express, React, and Node.js.
 
-## Features
-
-- 📝 Submit problems with email validation
-- 🗄️ **Real PostgreSQL database storage** (no more localStorage!)
-- 🔐 Password-protected admin dashboard
-- 🔍 Search and filter problems
-- 📊 Sort by newest, oldest, email, or status
-- ✅ Mark problems as pending/resolved
-- 📄 Pagination support
-- 📤 Export to CSV
-- ↶ Undo delete (5-second window)
-- 📤 Share website features
-- ♿ WCAG 2.1 AA accessible
-- 🎨 Professional, responsive design
-
-## Tech Stack
+## 🚀 Tech Stack
 
 ### Frontend
-- React 18.3.1
-- Vite 5.4.21
-- Modern CSS with animations
-- Fetch API for backend communication
-
-### Backend (NEW!)
-- Node.js + Express
-- PostgreSQL database
-- CORS + Helmet security
-- Rate limiting
-- Input validation & sanitization
-
-## Quick Start
-
-### Prerequisites
-- Node.js 18+ installed
-- PostgreSQL database (use free Supabase account or local PostgreSQL)
-
-### 1. Clone and Install
-
-```bash
-git clone https://github.com/nandhakumar-kb/share2solve.git
-cd share2solve
-npm install
-cd server
-npm install
-cd ..
-```
-
-### 2. Setup Database
-
-**Recommended: Use Supabase (Free)**
-
-1. Go to [supabase.com](https://supabase.com) and create account
-2. Create new project
-3. Copy connection string from Settings > Database
-4. Run the SQL from `server/database.sql` in Supabase SQL Editor
-
-**See `server/README.md` for detailed database setup instructions**
-
-### 3. Configure Environment
-
-```bash
-# Backend config
-cd server
-cp .env.example .env
-# Edit server/.env with your DATABASE_URL and ADMIN_PASSWORD
-
-# Frontend config
-cd ..
-cp .env.example .env
-# Edit .env with VITE_API_URL=http://localhost:4000/api
-```
-
-### 4. Start Backend Server
-
-```bash
-cd server
-npm start
-# Server runs on http://localhost:4000
-```
-
-### 5. Start Frontend
-
-```bash
-# In new terminal, from project root
-npm run dev
-# Frontend runs on http://localhost:5173
-```
-
-### 6. Migrate Existing Data (Optional)
-
-If you have localStorage data:
-
-1. Open `migrate.html` in browser
-2. Follow on-screen instructions
-3. Migrate data to backend database
-
-## Admin Access
-
-Visit: `http://localhost:5173/?admin=view`
-
-Password: Set in `server/.env` as `ADMIN_PASSWORD`
-
-## API Endpoints
-
-### Public
-- `GET /api/problems` - Get all problems
-- `POST /api/problems` - Submit problem
-
-### Admin (require password)
-- `POST /api/admin/login` - Verify password  
-- `PATCH /api/problems/:id` - Update status
-- `DELETE /api/problems/:id` - Delete problem
-
-Full API documentation in `server/README.md`
-
-## Deployment
+- **React 18** - UI Library
+- **Vite** - Build tool and dev server
+- **CSS3** - Styling
 
 ### Backend
+- **Node.js** - Runtime environment
+- **Express.js** - Web framework
+- **MongoDB** - NoSQL Database
+- **Mongoose** - MongoDB ODM
+- **Helmet** - Security middleware
+- **CORS** - Cross-origin resource sharing
+- **Express Rate Limit** - API rate limiting
 
-**Railway.app (Recommended)**
-1. Push code to GitHub
-2. Create Railway project from repo
-3. Add environment variables
-4. Deploy automatically
+## 📋 Prerequisites
 
-**Render.com**
-1. New Web Service
-2. Connect GitHub repo
-3. Root Directory: `server`
-4. Add environment variables
+Before you begin, ensure you have installed:
+- Node.js (v18 or higher)
+- MongoDB (v5 or higher) - Local installation OR MongoDB Atlas account
+- npm or yarn
 
-### Frontend
+## 🛠️ Installation
 
-**Vercel**
+### 1. Install Dependencies
+
+Install all dependencies (both frontend and backend):
 ```bash
-# Update .env with production API URL
-vercel --prod
+npm run install:all
 ```
 
-**Netlify**
-- Connect GitHub repo
-- Set build command: `npm run build`
-- Set publish directory: `dist`
-- Add environment variable: `VITE_API_URL`
+Or install separately:
+```bash
+# Frontend dependencies
+npm install
 
-## Project Structure
+# Backend dependencies
+cd server
+npm install
+```
+
+### 2. MongoDB Setup
+
+**Option A: Local MongoDB**
+1. Install MongoDB Community Server from https://www.mongodb.com/try/download/community
+2. Start MongoDB service (usually starts automatically)
+3. MongoDB will create the database automatically when you first run the app
+
+**Option B: MongoDB Atlas (Cloud)**
+1. Create free account at https://www.mongodb.com/cloud/atlas
+2. Create a cluster (Free M0 tier available)
+3. Setup database user and network access
+4. Get your connection string
+
+See detailed instructions in `server/MONGODB_SETUP.md`
+
+### 3. Environment Configuration
+
+#### Frontend Environment (.env)
+Create `.env` in the root directory:
+```bash
+VITE_API_URL=http://localhost:4000/api
+```
+
+#### Backend Environment (server/.env)
+Create `server/.env`:
+```bash
+# MongoDB Configuration - Choose one:
+
+# Local MongoDB
+MONGODB_URI=mongodb://localhost:27017/share2solve
+
+# OR MongoDB Atlas
+# MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/share2solve
+
+# Server Configuration
+PORT=4000
+NODE_ENV=development
+
+# Admin Configuration
+ADMIN_PASSWORD=your-secure-admin-password
+
+# CORS Configuration (comma-separated origins)
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+```
+
+Replace:
+- `username` and `password` with your MongoDB credentials (Atlas only)
+- `your-secure-admin-password` with a strong admin password
+
+## 🚀 Running the Application
+
+### Option 1: Run Frontend and Backend Together (Recommended)
+```bash
+npm run dev:full
+```
+
+This will start:
+- Backend server on `http://localhost:4000`
+- Frontend dev server on `http://localhost:5173`
+
+### Option 2: Run Separately
+
+**Terminal 1 - Backend:**
+```bash
+npm run server
+```
+
+**Terminal 2 - Frontend:**
+```bash
+npm run dev
+```
+
+## 📁 Project Structure
 
 ```
 share2solve/
-├── server/                # Backend API
-│   ├── index.js          # Express server
-│   ├── db.js             # Database connection
-│   ├── database.sql      # Database schema
-│   ├── package.json
-│   └── README.md         # Backend documentation
-├── src/
-│   ├── components/
-│   │   ├── Homepage.jsx  # Problem submission form
-│   │   └── AdminView.jsx # Admin dashboard
-│   ├── services/
-│   │   └── api.js        # API service layer
-│   ├── App.jsx
-│   ├── index.css
-│   └── main.jsx
-├── public/
-│   ├── logo.png
-│   └── .nojekyll
-├── migrate.html          # Data migration tool
-├── package.json
-├── vite.config.js
-└── README.md
+├── src/                      # Frontend source code
+│   ├── components/           # React components
+│   │   ├── Homepage.jsx      # Public problem submission
+│   │   └── AdminView.jsx     # Admin dashboard
+│   ├── services/             # API services
+│   │   └── api.js           # API client
+│   ├── App.jsx              # Main App component
+│   ├── main.jsx             # Entry point
+│   └── index.css            # Global styles
+├── server/                   # Backend source code
+│   ├── models/              # MongoDB/Mongoose models
+│   │   └── Problem.js       # Problem schema
+│   ├── index.js             # Express server
+│   ├── db.js                # MongoDB connection
+│   ├── MONGODB_SETUP.md     # MongoDB setup guide
+│   ├── package.json         # Backend dependencies
+│   └── .env                 # Backend environment variables
+├── public/                   # Static assets
+├── index.html               # HTML template
+├── vite.config.js           # Vite configuration
+├── package.json             # Frontend dependencies
+└── .env                     # Frontend environment variables
 ```
 
-## Security Features
+## 🔑 API Endpoints
 
-- ✅ Server-side input validation
-- ✅ SQL injection prevention (parameterized queries)
-- ✅ XSS protection (input sanitization)
-- ✅ Rate limiting (10 submissions per 15 min)
-- ✅ CORS configuration
-- ✅ Helmet security headers
-- ✅ Password-based admin auth
-- ✅ Environment variable secrets
+### Public Endpoints
+- `GET /api/problems` - Get all problems (with filters)
+- `POST /api/problems` - Submit a new problem
+- `GET /api/health` - Health check
 
-## Development
+### Admin Endpoints
+- `POST /api/admin/login` - Admin authentication
+- `PATCH /api/problems/:id` - Update problem status
+- `DELETE /api/problems/:id` - Delete a problem
 
+## 🔒 Security Features
+
+- Rate limiting on all API endpoints
+- CORS protection
+- Helmet security headers
+- Input validation and sanitization
+- MongoDB injection prevention (Mongoose sanitization)
+- Environment-based configuration
+
+## 🎯 Features
+
+- Submit and track problems
+- Admin dashboard for problem management
+- Search and filter problems
+- Status updates (pending/resolved)
+- Email tracking
+- Responsive design
+- MongoDB with Mongoose ODM
+- Automatic timestamps and validation
+
+## 📦 Build for Production
+
+### Frontend
 ```bash
-# Frontend with hot reload
-npm run dev
-
-# Backend with auto-restart
-cd server
-npm run dev
-
-# Build for production
 npm run build
 ```
+Output will be in the `dist/` directory.
 
-## Troubleshooting
+### Backend
+```bash
+cd server
+npm start
+```
 
-**Backend connection errors:**
-- Check `DATABASE_URL` in `server/.env`
-- Verify PostgreSQL is accessible
-- Check server logs for details
+## 🐛 Troubleshooting
 
-**CORS errors:**
-- Add frontend URL to `ALLOWED_ORIGINS` in `server/.env`
-- Restart backend server
+### Database Connection Issues
+- Verify MongoDB is running: `mongosh` or check Windows Services
+- Check MONGODB_URI in `server/.env`
+- For Atlas: Verify network access and credentials
+- See `server/MONGODB_SETUP.md` for detailed troubleshooting
 
-**Admin login fails:**
-- Verify `ADMIN_PASSWORD` matches in `server/.env`
-- Clear browser sessionStorage
+### Port Already in Use
+- Change PORT in `server/.env`
+- Update VITE_API_URL in `.env` accordingly
 
-See `server/README.md` for more troubleshooting tips.
+### CORS Errors
+- Add your frontend URL to ALLOWED_ORIGINS in `server/.env`
+- Restart the backend server
 
-## Documentation
-
-- [Backend Setup Guide](server/README.md)
-- [Deployment Guide](DEPLOYMENT_GUIDE.md)
-- [Features Documentation](FEATURES.md)
-- [Accessibility Guide](ACCESSIBILITY.md)
-
-## License
+## 📝 License
 
 MIT
+
+## 👨‍💻 Author
+
+Your Name

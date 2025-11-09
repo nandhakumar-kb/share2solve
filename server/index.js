@@ -3,12 +3,16 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import pool from './db.js';
+import connectDB from './db.js';
+import Problem from './models/Problem.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+// Connect to MongoDB
+connectDB();
 
 // Security middleware
 app.use(helmet());
@@ -59,11 +63,6 @@ const sanitizeInput = (input) => {
   return input.trim().slice(0, 10000); // max 10k chars
 };
 
-// Generate unique ID
-const generateId = () => {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-};
-
 // ==================== PROBLEMS ENDPOINTS ====================
 
 // GET all problems (public - read only)
@@ -71,45 +70,45 @@ app.get('/api/problems', async (req, res) => {
   try {
     const { search, status, sortBy = 'newest', limit = 1000 } = req.query;
     
-    let query = 'SELECT * FROM problems WHERE 1=1';
-    const params = [];
-    let paramCount = 1;
+    // Build query object
+    const query = {};
 
-    // Search filter
+    // Search filter (case-insensitive)
     if (search) {
-      query += ` AND (email ILIKE $${paramCount} OR problem ILIKE $${paramCount})`;
-      params.push(`%${search}%`);
-      paramCount++;
+      query.$or = [
+        { email: { $regex: search, $options: 'i' } },
+        { problem: { $regex: search, $options: 'i' } }
+      ];
     }
 
     // Status filter
     if (status && ['pending', 'resolved'].includes(status)) {
-      query += ` AND status = $${paramCount}`;
-      params.push(status);
-      paramCount++;
+      query.status = status;
     }
 
-    // Sorting
+    // Build sort object
+    let sort = {};
     switch (sortBy) {
       case 'oldest':
-        query += ' ORDER BY timestamp ASC';
+        sort = { timestamp: 1 };
         break;
       case 'email':
-        query += ' ORDER BY email ASC';
+        sort = { email: 1 };
         break;
       case 'status':
-        query += ' ORDER BY status ASC, timestamp DESC';
+        sort = { status: 1, timestamp: -1 };
         break;
       case 'newest':
       default:
-        query += ' ORDER BY timestamp DESC';
+        sort = { timestamp: -1 };
     }
 
-    query += ` LIMIT $${paramCount}`;
-    params.push(parseInt(limit) || 1000);
+    const problems = await Problem.find(query)
+      .sort(sort)
+      .limit(parseInt(limit) || 1000)
+      .lean(); // Returns plain JavaScript objects
 
-    const result = await pool.query(query, params);
-    res.json(result.rows);
+    res.json(problems);
   } catch (error) {
     console.error('Error fetching problems:', error);
     res.status(500).json({ error: 'Failed to fetch problems' });
@@ -141,19 +140,24 @@ app.post('/api/problems', strictLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Problem description too long (max 5000 characters)' });
     }
 
-    const id = generateId();
-    const ts = timestamp || new Date().toISOString();
+    // Create new problem document
+    const newProblem = new Problem({
+      email: sanitizedEmail,
+      problem: sanitizedProblem,
+      timestamp: timestamp ? new Date(timestamp) : new Date(),
+      status: 'pending'
+    });
 
-    const query = `
-      INSERT INTO problems (id, email, problem, timestamp, status)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING *
-    `;
-
-    const result = await pool.query(query, [id, sanitizedEmail, sanitizedProblem, ts, 'pending']);
-    res.status(201).json(result.rows[0]);
+    const savedProblem = await newProblem.save();
+    res.status(201).json(savedProblem);
   } catch (error) {
     console.error('Error creating problem:', error);
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ error: error.message });
+    }
+    
     res.status(500).json({ error: 'Failed to create problem' });
   }
 });
@@ -173,14 +177,17 @@ app.patch('/api/problems/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    const query = 'UPDATE problems SET status = $1 WHERE id = $2 RETURNING *';
-    const result = await pool.query(query, [status, id]);
+    const updatedProblem = await Problem.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true, runValidators: true }
+    );
 
-    if (result.rows.length === 0) {
+    if (!updatedProblem) {
       return res.status(404).json({ error: 'Problem not found' });
     }
 
-    res.json(result.rows[0]);
+    res.json(updatedProblem);
   } catch (error) {
     console.error('Error updating problem:', error);
     res.status(500).json({ error: 'Failed to update problem' });
@@ -198,14 +205,13 @@ app.delete('/api/problems/:id', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const query = 'DELETE FROM problems WHERE id = $1 RETURNING *';
-    const result = await pool.query(query, [id]);
+    const deletedProblem = await Problem.findByIdAndDelete(id);
 
-    if (result.rows.length === 0) {
+    if (!deletedProblem) {
       return res.status(404).json({ error: 'Problem not found' });
     }
 
-    res.json({ message: 'Problem deleted', problem: result.rows[0] });
+    res.json({ message: 'Problem deleted', problem: deletedProblem });
   } catch (error) {
     console.error('Error deleting problem:', error);
     res.status(500).json({ error: 'Failed to delete problem' });
